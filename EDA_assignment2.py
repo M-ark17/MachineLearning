@@ -24,6 +24,7 @@ else:
 
 df = pd.read_csv("train.csv")
 y = torch.from_numpy(df['Attrition'].values).float()
+y = y[1:]
 df = df.drop(['Attrition', 'EmployeeCount', 'EmployeeNumber', 'ID'], axis = 1)
 df = df.drop_duplicates()
 df = df.dropna()
@@ -56,24 +57,24 @@ df.loc[df.JobRole == 'Research Director', 'JobRole'] = 7
 df.loc[df.JobRole == 'Manager', 'JobRole'] = 8
 df.loc[df.JobRole == 'Human Resources', 'JobRole'] = 9
 
-for column in df.columns:
-    col_mean = np.mean(df[column])
-    col_dev = np.var(df[column])
-    df[column] = (df[column]-col_mean)/col_dev
-#scaler = preprocessing.MinMaxScaler()
-#df_scaled = scaler.fit_transform(df)
-#df = pd.DataFrame(df_scaled)
-#df = pd.DataFrame(data=df_scaled[1:,1:],columns=df_scaled[0,1:])
+#for column in df.columns:
+#    col_mean = np.mean(df[column])
+#    col_dev = np.var(df[column])
+#    df[column] = (df[column]-col_mean)/col_dev
+scaler = preprocessing.MinMaxScaler()
+df_scaled = scaler.fit_transform(df)
+df = pd.DataFrame(df_scaled)
+df = pd.DataFrame(data=df_scaled[1:,1:],columns=df_scaled[0,1:])
 corr_matrix = df.corr().abs()
 upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
-to_drop = [column for column in upper.columns if any(upper[column] > 0.90)]
+to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
 df = df.drop(df[to_drop], axis=1)
 #plt.figure(figsize=(200,100))
 #sbn.heatmap(c, cmap="BrBG", annot=True)
 #plt.show()
 #df.to_csv('processed.csv')
 
-input_dim = 29
+input_dim = df.shape[1]
 output_dim = 1
 hidden_dim = 150
 
@@ -104,8 +105,9 @@ model = nn.Sequential(
 df_tensor = torch.from_numpy(df.values).float()
 loss_fn = torch.nn.CrossEntropyLoss()
 learning_rate = 1e-4
+print(model)
 y_pred = model(df_tensor)
 y_out = y_pred.squeeze().type(torch.FloatTensor)
 y=y.type(torch.FloatTensor)
-loss = loss_fn(y.unsqueeze(1), y_out)
-print(loss)
+loss = loss_fn(y.unsqueeze(1), y_out.long())
+print(loss.item())
