@@ -1,5 +1,4 @@
 import sys 
-
 import pandas as pd
 import numpy as np
 import seaborn as sbn
@@ -9,10 +8,6 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-sbn.set(color_codes=True)
-pd.set_option('display.max_rows', 10)
-pd.set_option('display.max_columns', 500)
-pd.set_option('display.width', 1000)
 n = len(sys.argv)
 
 if(n == 3):
@@ -58,10 +53,6 @@ df.loc[df.JobRole == 'Research Director', 'JobRole'] = 7
 df.loc[df.JobRole == 'Manager', 'JobRole'] = 8
 df.loc[df.JobRole == 'Human Resources', 'JobRole'] = 9
 
-#for column in df.columns:
-#    col_mean = np.mean(df[column])
-#    col_dev = np.var(df[column])
-#    df[column] = (df[column]-col_mean)/col_dev
 scaler = preprocessing.MinMaxScaler()
 df_scaled = scaler.fit_transform(df)
 df = pd.DataFrame(df_scaled)
@@ -70,53 +61,53 @@ corr_matrix = df.corr().abs()
 upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
 to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
 df = df.drop(df[to_drop], axis=1)
-#plt.figure(figsize=(200,100))
-#sbn.heatmap(c, cmap="BrBG", annot=True)
-#plt.show()
-#df.to_csv('processed.csv')
+N, D_in, H, D_out = df.shape[0], df.shape[1], 100, 1
 
-input_dim = df.shape[1]
-output_dim = 1
-hidden_dim = 150
-
-model = nn.Sequential(
-    nn.Linear(input_dim, hidden_dim),
-    nn.ReLU(),
-    nn.Linear(hidden_dim, output_dim))
-
-def init_weights(m):
-    if type(m) == nn.Linear:
-        torch.nn.init.xavier_uniform_(m.weight)
-        m.bias.data.fill_(0.01)
-        
-model.apply(init_weights)
+# Create random Tensors to hold inputs and outputs
 df_tensor = torch.from_numpy(df.values).float()
-loss_fn = torch.nn.CrossEntropyLoss()
-loss_fn.requires_grad = True
-for param in model.parameters():
-    param.requires_grad = True
-learning_rate = 1e-4
-max_epochs = 100
-batch_size = df.shape[0]
-n_batches = 32
-batch_size = 1028
-biter_size = int(batch_size/n_batches)
-print(model)
+x = df_tensor.squeeze(1) 
 
-for epoch in range(max_epochs):
-    for i in range(biter_size):
-        # Local batches and labels
-        local_X = df_tensor[i*n_batches:(i+1)*n_batches,:]
-        local_Y = y[i*n_batches:(i+1)*n_batches]
-        y_pred = model(local_X)
-        y_out = y_pred.squeeze().type(torch.FloatTensor)
-        y=y.type(torch.FloatTensor)
-        loss = loss_fn(local_Y.unsqueeze(1), y_out.long())
-        loss = Variable(loss, requires_grad = True)
-        print(loss)
-        model.zero_grad()
-        loss.backward()
-        with torch.no_grad():
-            for param in model.parameters():
-                param -= learning_rate * param.grad
-                
+# Use the nn package to define our model as a sequence of layers. nn.Sequential
+# is a Module which contains other Modules, and applies them in sequence to
+# produce its output. Each Linear Module computes output from input using a
+# linear function, and holds internal Tensors for its weight and bias.
+model = torch.nn.Sequential(
+    torch.nn.Linear(D_in, H),
+    torch.nn.ReLU(),
+    torch.nn.Linear(H, D_out),
+)
+
+# The nn package also contains definitions of popular loss functions; in this
+# case we will use Mean Squared Error (MSE) as our loss function.
+#loss_fn = torch.nn.MSELoss(reduction='sum')
+loss_fn = torch.nn.CrossEntropyLoss()
+
+learning_rate = 1e-4
+for t in range(500):
+    # Forward pass: compute predicted y by passing x to the model. Module objects
+    # override the __call__ operator so you can call them like functions. When
+    # doing so you pass a Tensor of input data to the Module and it produces
+    # a Tensor of output data.
+    y_pred = model(x)
+
+    # Compute and print loss. We pass Tensors containing the predicted and true
+    # values of y, and the loss function returns a Tensor containing the
+    # loss.
+    loss = loss_fn(y_pred, y.long())
+    if t % 100 == 99:
+        print(t, loss.item())
+
+    # Zero the gradients before running the backward pass.
+    model.zero_grad()
+
+    # Backward pass: compute gradient of the loss with respect to all the learnable
+    # parameters of the model. Internally, the parameters of each Module are stored
+    # in Tensors with requires_grad=True, so this call will compute gradients for
+    # all learnable parameters in the model.
+    loss.backward()
+
+    # Update the weights using gradient descent. Each parameter is a Tensor, so
+    # we can access its gradients like we did before.
+    with torch.no_grad():
+        for param in model.parameters():
+            param -= learning_rate * param.grad
