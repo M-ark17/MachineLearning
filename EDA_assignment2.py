@@ -82,32 +82,39 @@ model = nn.Sequential(
     nn.Linear(input_dim, hidden_dim),
     nn.ReLU(),
     nn.Linear(hidden_dim, output_dim))
-#batch_size = 1028
-#input = torch.rand(batch_size, input_dim)
-#output = model(input)
 
-#class TwoLayerNet(nn.Module):
-#    def __init__(self, D_in, H, D_out):
-#        super(TwoLayerNet, self).__init__()
-#
-#        self.linear1 = nn.Linear(D_in, H)
-#        self.linear2 = nn.Linear(H, D_out)
-#        self.relu = nn.ReLU()
-#
-#    def forward(self, x):
-#        h_relu = self.relu(self.linear1(x))
-#        y_pred = self.linear2(h_relu)
-#        return y_pred
-
-#N, D_in, H, D_out = 1028, 29, 159, 1
-#model = TwoLayerNet(D_in, H, D_out)
-
+def init_weights(m):
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)
+        m.bias.data.fill_(0.01)
+        
+model.apply(init_weights)
 df_tensor = torch.from_numpy(df.values).float()
 loss_fn = torch.nn.CrossEntropyLoss()
+loss_fn.requires_grad = True
+for param in model.parameters():
+    param.requires_grad = True
 learning_rate = 1e-4
+max_epochs = 100
+batch_size = df.shape[0]
+n_batches = 32
+batch_size = 1028
+biter_size = int(batch_size/n_batches)
 print(model)
-y_pred = model(df_tensor)
-y_out = y_pred.squeeze().type(torch.FloatTensor)
-y=y.type(torch.FloatTensor)
-loss = loss_fn(y.unsqueeze(1), y_out.long())
-print(loss.item())
+
+for epoch in range(max_epochs):
+    for i in range(biter_size):
+        # Local batches and labels
+        local_X = df_tensor[i*n_batches:(i+1)*n_batches,:]
+        local_Y = y[i*n_batches:(i+1)*n_batches]
+        y_pred = model(local_X)
+        y_out = y_pred.squeeze().type(torch.FloatTensor)
+        y=y.type(torch.FloatTensor)
+        loss = loss_fn(local_Y.unsqueeze(1), y_out.long())
+        print(loss)
+        model.zero_grad()
+        loss.backward()
+        with torch.no_grad():
+            for param in model.parameters():
+                param -= learning_rate * param.grad
+                
