@@ -57,7 +57,7 @@ elif(n == 2):
     training_file = str(sys.argv[1])
 else:
     training_file = "train.csv"
-def EDA(filename):
+def EDA(filename ):
     df = pd.read_csv(filename)
     if "train" in filename:
         y = torch.from_numpy(df['Attrition'].values).float()
@@ -104,14 +104,20 @@ def EDA(filename):
     #    col_mean = np.mean(df[column])
     #    col_dev = np.var(df[column])
     #    df[column] = (df[column]-col_mean)/col_dev
+    saved_cols = df.columns
     scaler = preprocessing.MinMaxScaler()
     df_scaled = scaler.fit_transform(df)
     df = pd.DataFrame(df_scaled)
     df = pd.DataFrame(data=df_scaled[1:,1:],columns=df_scaled[0,1:])
-    #corr_matrix = df.corr().abs()
-    #upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
-    #to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+    #df = pd.DataFrame(df,saved_cols)
+    #if(flag):
+    #    corr_matrix = df.corr().abs()
+    #    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+    #    global to_drop
+    #    to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+    #    
     #df = df.drop(df[to_drop], axis=1)
+    #df = pd.DataFrame(data=df[1:,1:],columns=df_scaled[0,1:])
     #plt.figure(figsize=(200,100))
     #sbn.heatmap(c, cmap="BrBG", annot=True)
     #plt.show()
@@ -127,7 +133,7 @@ df,y = EDA("train.csv")
 models = []
 models.append(('Logistic Regression', LogisticRegression(solver='liblinear', random_state=7)))
 models.append(('Random Forest', RandomForestClassifier(n_estimators = 100, random_state = 7)))
-models.append(('SVM', SVC(gamma='auto', random_state=7)))
+models.append(('SVM', SVC(gamma='auto', kernel = 'rbf' ,random_state=7)))
 
 
 for name, model in models:
@@ -143,8 +149,8 @@ log_gs = GridSearchCV(LogisticRegression(solver='liblinear', # setting GridSearc
                       iid=True,
                       return_train_score=True,
                       param_grid=param_grid,
-                      scoring='roc_auc',
-                      cv=10)
+                      scoring='accuracy',
+                      cv=2)
 
 log_grid = log_gs.fit(df, y)
 log_opt = log_grid.best_estimator_
@@ -172,8 +178,8 @@ grid_obj = GridSearchCV(rf_classifier,
                         iid=True,
                         return_train_score=True,
                         param_grid=param_grid,
-                        scoring='roc_auc',
-                        cv=10)
+                        scoring='accuracy',
+                        cv=2)
 
 grid_fit = grid_obj.fit(df, y)
 rf_opt = grid_fit.best_estimator_
@@ -187,3 +193,27 @@ rf_opt.fit(df, y)
 y_test = rf_opt.predict(x_test)
 
 np.savetxt("test_prediciton_random_forest.csv",[np.array(pd.read_csv('test.csv')['ID'][1::]), y_test.astype(int)],header="ID,Attrition")
+
+svm_classifier = SVC(gamma='auto', kernel = 'rbf' ,random_state=7)
+param_grid = {'C': [0.001, 0.01, 0.1, 1, 10],
+              'gamma' : [0.001, 0.01, 0.1, 1]}
+
+grid_obj = GridSearchCV(svm_classifier,
+                        iid=True,
+                        return_train_score=True,
+                        param_grid=param_grid,
+                        scoring='accuracy',
+                        cv=2)
+
+grid_fit = grid_obj.fit(df, y)
+svm_opt = grid_fit.best_estimator_
+
+print('='*20)
+print("best params: " + str(grid_obj.best_estimator_))
+print("best params: " + str(grid_obj.best_params_))
+print('best score:', grid_obj.best_score_)
+print('='*20)
+svm_opt.fit(df, y)
+y_test = svm_opt.predict(x_test)
+
+np.savetxt("test_prediciton_svm.csv",[np.array(pd.read_csv('test.csv')['ID'][1::]), y_test.astype(int)],header="ID,Attrition")
