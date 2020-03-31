@@ -8,41 +8,26 @@ from sklearn import preprocessing
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-# sklearn modules for preprocessing
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-# from imblearn.over_sampling import SMOTE  # SMOTE
-# sklearn modules for ML model selection
-from sklearn.model_selection import train_test_split  # import 'train_test_split'
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import KFold
 from sklearn.model_selection import cross_val_score
 
-# Libraries for data modelling
 from sklearn import svm, tree, linear_model, neighbors
-from sklearn import naive_bayes, ensemble, discriminant_analysis, gaussian_process
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from xgboost import XGBClassifier
 from sklearn.ensemble import RandomForestClassifier
 
 # Common sklearn Model Helpers
-from sklearn import feature_selection
 from sklearn import model_selection
-from sklearn import metrics
 # from sklearn.datasets import make_classification
 
 # sklearn modules for performance metrics
-from sklearn.metrics import confusion_matrix, classification_report, precision_recall_curve
 from sklearn.metrics import auc, roc_auc_score, roc_curve, recall_score, log_loss
-from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, make_scorer
-from sklearn.metrics import average_precision_score
 
 sbn.set(color_codes=True)
 pd.set_option('display.max_rows', 10)
