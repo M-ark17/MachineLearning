@@ -5,14 +5,11 @@ import numpy as np
 import seaborn as sbn
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
+from sklearn.model_selection import GridSearchCV
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-sbn.set(color_codes=True)
-pd.set_option('display.max_rows', 10)
-pd.set_option('display.max_columns', 500)
-pd.set_option('display.width', 1000)
 n = len(sys.argv)
 
 if(n == 3):
@@ -27,6 +24,8 @@ df = pd.read_csv("train.csv")
 y = torch.from_numpy(df['Attrition'].values).float()
 y = y[1:]
 df = df.drop(['Attrition', 'EmployeeCount', 'EmployeeNumber', 'ID'], axis = 1)
+#df = pd.DataFrame(df)
+#df = pd.DataFrame(data=df[1:,1:],columns=df[0,1:])
 df = df.drop_duplicates()
 df = df.dropna()
 df.loc[df.Gender == 'Male', 'Gender'] = 1
@@ -58,31 +57,20 @@ df.loc[df.JobRole == 'Research Director', 'JobRole'] = 7
 df.loc[df.JobRole == 'Manager', 'JobRole'] = 8
 df.loc[df.JobRole == 'Human Resources', 'JobRole'] = 9
 
-#for column in df.columns:
-#    col_mean = np.mean(df[column])
-#    col_dev = np.var(df[column])
-#    df[column] = (df[column]-col_mean)/col_dev
 scaler = preprocessing.MinMaxScaler()
 df_scaled = scaler.fit_transform(df)
 df = pd.DataFrame(df_scaled)
 df = pd.DataFrame(data=df_scaled[1:,1:],columns=df_scaled[0,1:])
-corr_matrix = df.corr().abs()
-upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
-to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
-df = df.drop(df[to_drop], axis=1)
-#plt.figure(figsize=(200,100))
-#sbn.heatmap(c, cmap="BrBG", annot=True)
-#plt.show()
-#df.to_csv('processed.csv')
 
 input_dim = df.shape[1]
 output_dim = 1
-hidden_dim = 150
+hidden_dim = 200
 
 model = nn.Sequential(
     nn.Linear(input_dim, hidden_dim),
     nn.ReLU(),
-    nn.Linear(hidden_dim, output_dim))
+    nn.Linear(hidden_dim, output_dim),
+    nn.Sigmoid())
 
 def init_weights(m):
     if type(m) == nn.Linear:
@@ -91,32 +79,61 @@ def init_weights(m):
         
 model.apply(init_weights)
 df_tensor = torch.from_numpy(df.values).float()
-loss_fn = torch.nn.CrossEntropyLoss()
-loss_fn.requires_grad = True
-for param in model.parameters():
-    param.requires_grad = True
-learning_rate = 1e-4
-max_epochs = 100
+loss_fn = torch.nn.BCELoss()
+learning_rate = 1e-2
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+max_epochs = 5
 batch_size = df.shape[0]
 n_batches = 32
 batch_size = 1028
 biter_size = int(batch_size/n_batches)
 print(model)
-
+y=y.type(torch.FloatTensor)
+max_loss = 10000
 for epoch in range(max_epochs):
+    df_tensor = df_tensor[torch.randperm(df_tensor.size()[0])]
+    running_loss = 0
     for i in range(biter_size):
         # Local batches and labels
         local_X = df_tensor[i*n_batches:(i+1)*n_batches,:]
         local_Y = y[i*n_batches:(i+1)*n_batches]
         y_pred = model(local_X)
         y_out = y_pred.squeeze().type(torch.FloatTensor)
-        y=y.type(torch.FloatTensor)
-        loss = loss_fn(local_Y.unsqueeze(1), y_out.long())
+        y_out = Variable(y_out, requires_grad = False) 
+        loss = loss_fn(local_Y.unsqueeze(1), y_out)
         loss = Variable(loss, requires_grad = True)
-        print(loss)
-        model.zero_grad()
+        print(loss.data)
+        running_loss += loss.detach()
+        optimizer.zero_grad()
+        loss.detach()
         loss.backward()
-        with torch.no_grad():
-            for param in model.parameters():
-                param -= learning_rate * param.grad
+        optimizer.step()
+    if(running_loss < max_loss):
+        torch.save(model, "./better_model")
+        max_loss = running_loss
+    print("="*50)
+    print("Loss for the epoch ", epoch)
+    print(running_loss)
+    print("="*50)
                 
+#print("*"*100)
+#print("average Loss = ", running_loss/(max_epochs*batch_size)) 
+#print("*"*100)
+#from skorch import NeuralNetRegressor
+#net = NeuralNetRegressor(model
+#                         , max_epochs=max_epochs
+#                         , lr=learning_rate
+#                         , verbose=1)	
+#
+#param_grid = {'max_epochs': [10,20,30,100,200,300,500,1000,2000], 'lr': [1e-2,1e-4,1e-6,1e-1]}
+#grid = GridSearchCV(estimator=net, param_grid=param_grid, n_jobs=-1, cv=3)
+#y = y.reshape(-1, 1)
+#grid_result = grid.fit(df, y)
+#
+#nn_opt = grid_result.best_estimator_
+#
+#print('='*20)
+#print("best params: " + str(grid.best_estimator_))
+#print("best params: " + str(grid.best_params_))
+#print('best score:', grid.best_score_)
+#print('='*20)
